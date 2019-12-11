@@ -43,6 +43,10 @@ static uint8_t checkturn = 0x00;
 #define TURNSIGNAL 0x50
 #define CRUISE     0x52
 
+// I2C Set-Up
+// -I2C 9534A  /
+#define INADD 0x38  // Input Address
+#define OUTADD 0x39 // Output Address
 
 // Encoder Set-Up
 
@@ -68,7 +72,7 @@ void beep (uint8_t cmd, uint8_t param[])
 {
   byte freq = 100;
   // Press to honk horn
-  byte honk = param[1];
+  byte honk = param[0];
   if (horn == 0x01)
   {
     // Will sound twice
@@ -84,7 +88,10 @@ Packet motorPWM(MOTOR2_CURRENT_ID);  // initialize the packet properties to defa
 void setup()
 {
   servo11.attach(11);
+  // I2C Pin Access
+  pinMode(2,INPUT);
   Wire.begin();
+  expanderSetInput(INADD, 0xFF);
   // Blinkers on DPIN 14, 16
   pinMode(blinker_r,OUTPUT);
   pinMode(blinker_l,OUTPUT);
@@ -110,8 +117,31 @@ void setup()
   ArxRobot.setOnCommand(onCommand, CMD_LIST_SIZE);
 }
 
+void expanderSetInput(int i2caddr,byte dir) {
+  Wire.beginTransmission(i2caddr);
+  Wire.write(dir);   // outputs high for input
+  Wire.endTransmission();
+}
+
+byte expanderRead(int i2caddr) {
+  int _data = -1;
+  Wire.requestFrom(i2caddr,1);
+  if(Wire.available()) {
+    _data = Wire.read();
+  }
+  return _data;
+}
+
+void expanderWrite(int i2caddr, byte data) {
+  Wire.beginTransmission(i2caddr);
+  Wire.write(data);
+  Wire.endTransmission();
+}
+
 void loop()
 {
+  // Check data received from I2C
+  int data = expanderRead(INADD);
   ArxRobot.loop();
   // Update Turn Signal Blinkers
   switch (checkturn)
@@ -136,7 +166,7 @@ void loop()
     digitalWrite(blinker_r,LOW);
     delay(500);
     break;
-    case 244:
+    case 0x03:
     // Hazards ON
     digitalWrite(blinker_r,HIGH);
     digitalWrite(blinker_l,HIGH);
@@ -147,13 +177,15 @@ void loop()
     delay(500);
     break;
   }
-  // Receive Encoder
-  Serial.print("Motor A:");   // Speed of Motor A
-  Serial.println(speedA);
-  Serial.print("Motor B:");   // Speed of Motor B
-  Serial.println(speedB);
+  /*
+   * Monitor Data/Values
+   */
+    Serial.println(data);
+//  Serial.print("Motor A:");   // Speed of Motor A
+//  Serial.println(speedA);
+//  Serial.print("Motor B:");   // Speed of Motor B
+//  Serial.println(speedB);
   Serial.println(checkturn);  // Check the Turn Signal Flag
-  delay(100);
     /*
      * Telemetry
      *         Read sensor and send packet
