@@ -19,7 +19,6 @@ static uint8_t RM = 0x00;
 #include <EEPROM.h>
 #include <Wire.h>        // I2C support
 
-
 ArxRobot ArxRobot;       // instantiated as ArxRobot at end of class header
 
 // Steps for current limiter
@@ -33,18 +32,9 @@ uint8_t N = 40;
 #define STBY  8
 static uint8_t angle = 100;
 static uint8_t checkturn = 0x00;
-/*
- * CUSTOM SHIELD ADDRESSES
- * - Turn Signal Blinkers
- * - Variant Car Sounds (Horn)
- * - Differential Drive
- */
-#define BEEP       0x51
 
-/* Play Melody
- * -----------
- *
- * Program to play a simple melody
+/*
+ * Program to play a simple melody at start-up
  *
  * Tones are created by quickly pulsing a speaker on and off 
  *   using PWM, to create signature frequencies.
@@ -88,34 +78,6 @@ static uint8_t checkturn = 0x00;
   int beat = 0;
   long duration  = 0;
 
-#define TURNSIGNAL 0x50
-#define CRUISE     0x52
-
-// Encoder Set-Up
-
-// PID Controller Timer Set-Up
-
-// Define DPINS for Custom Shield
-#define blinker_r 14
-#define blinker_l 15   
-#define horn      22
-
-Motor motorA;       // Create Motor A
-Motor motorB;       // Create Motor B
-Servo servo11;      // Create servo object
-
-const uint8_t CMD_LIST_SIZE = 4;   // we are adding 4 commands (MOVE, SERVO1, TURNSIGNAL, BEEP)
-
-void turnsig (uint8_t cmd, uint8_t param[])
-{
-  checkturn = param[0];
-} // turnsig
-
-void beep (uint8_t cmd, uint8_t param[])
-{
-  int i = param[0];
-}
-
 void song()
 {
   long elapsed_time = 0;
@@ -155,6 +117,43 @@ void play()
           delayMicroseconds(pause);
       }
 }
+
+/*
+ * CUSTOM SHIELD ADDRESSES
+ * - Turn Signal Blinkers
+ * - Variant Car Sounds (Horn)
+ * - Differential Drive
+ */
+
+#define BEEP       0x51
+#define TURNSIGNAL 0x50
+#define CRUISE     0x52
+
+// Encoder Set-Up
+
+// PID Controller Timer Set-Up
+
+// Define DPINS for Custom Shield
+#define blinker_r 14
+#define blinker_l 15   
+#define horn      22
+
+Motor motorA;       // Create Motor A
+Motor motorB;       // Create Motor B
+Servo servo11;      // Create servo object
+
+const uint8_t CMD_LIST_SIZE = 4;   // we are adding 4 commands (MOVE, SERVO1, TURNSIGNAL, BEEP)
+
+void turnsig (uint8_t cmd, uint8_t param[])
+{
+  checkturn = param[0];
+} // turnsig
+
+void beep (uint8_t cmd, uint8_t param[])
+{
+  int i = param[0];
+}
+
 ArxRobot::cmdFunc_t onCommand[CMD_LIST_SIZE] = {{MOVE,moveHandler}, {SERVO,servoHandler}, {TURNSIGNAL,turnsig}, {BEEP,beep}};
 
 Packet motorPWM(MOTOR2_CURRENT_ID);  // initialize the packet properties to default values
