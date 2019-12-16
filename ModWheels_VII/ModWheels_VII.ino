@@ -25,6 +25,27 @@ ArxRobot ArxRobot;       // instantiated as ArxRobot at end of class header
 uint8_t N = 40;
 
 /*
+ * Setting Up the I2C
+ */
+#define address      0x38
+
+void I2Cwrite(uint8_t config_, uint8_t data){
+  Wire.beginTransmission(address);
+  Wire.write(config_);
+  Wire.write(data);
+  Wire.endTransmission();
+  delay(10);
+}
+
+void I2Cread(uint8_t config_, uint8_t data){
+  Wire.beginTransmission(address);
+  Wire.write(config_);
+  Wire.write(data);
+  Wire.endTransmission();
+  delay(10);
+}
+
+/*
  * NOTE: Custom command address space 0x40 - 0x5F.
  * We will keep SERVO defined here for manual servo adjustment as needed
  */
@@ -62,9 +83,9 @@ static uint8_t checkturn = 0x00;
 #define  b            2028    // 493 Hz 
 #define  C            1912    // 523 Hz
 #define  R               0
-  int melody[] = {  C,  b,  g,  C,  b,   e,  R,  C,  c,  g, a, C };
-  int beats[]  = { 16, 16, 16,  8,  8,  16, 32, 16, 16, 16, 8, 8 }; 
-  int MAX_COUNT = sizeof(melody) / 2; // Melody length, for looping.
+int melody[] = {  C,  b,  g,  C,  b,   e,  R,  C,  c,  g, a, C };
+int beats[]  = { 16, 16, 16,  8,  8,  16, 32, 16, 16, 16, 8, 8 }; 
+int MAX_COUNT = sizeof(melody) / 2; // Melody length, for looping.
   
 // Set overall tempo
   long tempo = 10000;
@@ -81,8 +102,8 @@ static uint8_t checkturn = 0x00;
 void song()
 {
   long elapsed_time = 0;
-  if (tone_ > 0) { // if this isn't a Rest beat, while the tone has 
-    //  played less long than 'duration', pulse speaker HIGH and LOW
+  if (tone_ > 0) {                    // if this isn't a Rest beat, while the tone has 
+                                      //  played less long than 'duration', pulse speaker HIGH and LOW
     while (elapsed_time < duration) {
 
       digitalWrite(speakerOut,HIGH);
@@ -96,8 +117,8 @@ void song()
       elapsed_time += (tone_);
     } 
   }
-  else { // Rest beat; loop times delay
-    for (int j = 0; j < rest_count; j++) { // See NOTE on rest_count
+  else {                                    // Rest beat; loop times delay
+    for (int j = 0; j < rest_count; j++) {  // See NOTE on rest_count
       delayMicroseconds(duration);  
     }                                
   }
@@ -124,7 +145,6 @@ void play()
  * - Variant Car Sounds (Horn)
  * - Differential Drive
  */
-
 #define BEEP       0x51
 #define TURNSIGNAL 0x50
 #define CRUISE     0x52
@@ -134,8 +154,12 @@ void play()
 // PID Controller Timer Set-Up
 
 // Define DPINS for Custom Shield
-#define blinker_r 14
-#define blinker_l 15   
+#define lightsOff  0x00
+#define leftBlink  0x01
+#define rightBlink 0x08
+#define headlights 0x06
+#define hazard     0x09
+
 #define horn      22
 
 Motor motorA;       // Create Motor A
@@ -144,10 +168,41 @@ Servo servo11;      // Create servo object
 
 const uint8_t CMD_LIST_SIZE = 4;   // we are adding 4 commands (MOVE, SERVO1, TURNSIGNAL, BEEP)
 
-void turnsig (uint8_t cmd, uint8_t param[])
-{
+void turnsig (uint8_t cmd, uint8_t param[]){
   checkturn = param[0];
+    // Update Turn Signal Blinkers
 } // turnsig
+
+void blinker()
+{
+    switch (checkturn)
+  {
+    case 0x00:
+    I2Cwrite(0x01,lightsOff);
+    break;
+    case 0x01:
+    // Turning Right
+    I2Cwrite(0x01,rightBlink);
+    delay(500);
+    I2Cwrite(0x01,lightsOff);
+    delay(500);
+    break;
+    case 0x02:
+    // Turning Left
+    I2Cwrite(0x01,leftBlink);
+    delay(500);
+    I2Cwrite(0x01,lightsOff);
+    delay(500);
+    break;
+    case 0x03:
+    // Hazards ON
+    I2Cwrite(0x01,hazard);
+    delay(500);
+    I2Cwrite(0x01,lightsOff);
+    delay(500);
+    break;
+  }
+}
 
 void beep (uint8_t cmd, uint8_t param[])
 {
@@ -163,12 +218,10 @@ void setup()
   play();
   servo11.attach(11);
   // I2C Pin Access
-  pinMode(2,INPUT);
   Wire.begin();
-  // Blinkers on DPIN 14, 16
-  pinMode(blinker_r,OUTPUT);
-  pinMode(blinker_l,OUTPUT);
-
+  I2Cwrite(0x03,0xF0);
+  delay(5);
+  
   // Horn on DPIN 22
   pinMode(horn,OUTPUT);
  
@@ -193,40 +246,7 @@ void setup()
 void loop()
 {
   ArxRobot.loop();
-  // Update Turn Signal Blinkers
-  switch (checkturn)
-  {
-    case 0x00:
-    digitalWrite(blinker_r,LOW);
-    digitalWrite(blinker_l,LOW);
-    break;
-    case 0x01:
-    // Turning Right
-    digitalWrite(blinker_r,HIGH);
-    delay(500);
-    digitalWrite(blinker_r,LOW);
-    delay(500);
-    break;
-    case 0x02:
-    // Turning Left
-    digitalWrite(blinker_r,LOW);
-    digitalWrite(blinker_l,HIGH);
-    delay(500);
-    digitalWrite(blinker_l,LOW);
-    digitalWrite(blinker_r,LOW);
-    delay(500);
-    break;
-    case 0x03:
-    // Hazards ON
-    digitalWrite(blinker_r,HIGH);
-    digitalWrite(blinker_l,HIGH);
-    delay(500);
-    // Hazards OFF
-    digitalWrite(blinker_r,LOW);
-    digitalWrite(blinker_l,LOW);
-    delay(500);
-    break;
-  }
+  blinker();
   /*
    * Monitor Data/Values
    */
