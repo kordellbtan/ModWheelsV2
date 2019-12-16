@@ -53,6 +53,7 @@ void I2Cread(uint8_t config_, uint8_t data){
 #define STBY  8
 static uint8_t angle = 100;
 static uint8_t checkturn = 0x00;
+static uint8_t checklight = 0x00;
 
 /*
  * Program to play a simple melody at start-up
@@ -145,9 +146,10 @@ void play()
  * - Variant Car Sounds (Horn)
  * - Differential Drive
  */
-#define BEEP       0x51
 #define TURNSIGNAL 0x50
-#define CRUISE     0x52
+#define HEADLIGHTS 0x51
+#define BEEP       0x52
+#define CRUISE     0x53
 
 // Encoder Set-Up
 
@@ -157,16 +159,19 @@ void play()
 #define lightsOff  0x00
 #define leftBlink  0x01
 #define rightBlink 0x08
-#define headlights 0x06
+#define headlight  0x06
 #define hazard     0x09
+#define Llights    0x07
+#define Rlights    0x0E
+#define Hlights    0x0F
 
-#define horn      22
+#define horn         22
 
 Motor motorA;       // Create Motor A
 Motor motorB;       // Create Motor B
 Servo servo11;      // Create servo object
 
-const uint8_t CMD_LIST_SIZE = 4;   // we are adding 4 commands (MOVE, SERVO1, TURNSIGNAL, BEEP)
+const uint8_t CMD_LIST_SIZE = 5;   // we are adding 4 commands (MOVE, SERVO1, TURNSIGNAL, BEEP, HEADLIGHTS)
 
 void turnsig (uint8_t cmd, uint8_t param[]){
   checkturn = param[0];
@@ -178,30 +183,64 @@ void blinker()
     switch (checkturn)
   {
     case 0x00:
-    I2Cwrite(0x01,lightsOff);
+    if (checklight == 0x01) {
+      I2Cwrite(0x01,headlight);
+    }
+    if (checklight == 0x00) {
+      I2Cwrite(0x01,lightsOff);
+    }
     break;
     case 0x01:
     // Turning Right
-    I2Cwrite(0x01,rightBlink);
-    delay(500);
-    I2Cwrite(0x01,lightsOff);
-    delay(500);
+    if (checklight == 0x01) {
+      I2Cwrite(0x01,Rlights);
+      delay(500);
+      I2Cwrite(0x01,headlight);
+      delay(500);
+    }
+    if (checklight == 0x00) {
+      I2Cwrite(0x01,rightBlink);
+      delay(500);
+      I2Cwrite(0x01,lightsOff);
+      delay(500);
+    }
     break;
     case 0x02:
     // Turning Left
-    I2Cwrite(0x01,leftBlink);
-    delay(500);
-    I2Cwrite(0x01,lightsOff);
-    delay(500);
+    if (checklight == 0x01) {
+      I2Cwrite(0x01,Llights);
+      delay(500);
+      I2Cwrite(0x01,headlight);
+      delay(500);
+    }
+    if (checklight == 0x00) {
+      I2Cwrite(0x01,leftBlink);
+      delay(500);
+      I2Cwrite(0x01,lightsOff);
+      delay(500);
+    }
     break;
     case 0x03:
     // Hazards ON
-    I2Cwrite(0x01,hazard);
-    delay(500);
-    I2Cwrite(0x01,lightsOff);
-    delay(500);
+    if (checklight == 0x01) {
+      I2Cwrite(0x01,Hlights);
+      delay(500);
+      I2Cwrite(0x01,headlight);
+      delay(500);
+    }
+    if (checklight == 0x00) {
+      I2Cwrite(0x01,hazard);
+      delay(500);
+      I2Cwrite(0x01,lightsOff);
+      delay(500);
+    }
     break;
   }
+}
+
+void headlights (uint8_t cmd, uint8_t param[])
+{
+  checklight = param[0];
 }
 
 void beep (uint8_t cmd, uint8_t param[])
@@ -209,14 +248,18 @@ void beep (uint8_t cmd, uint8_t param[])
   int i = param[0];
 }
 
-ArxRobot::cmdFunc_t onCommand[CMD_LIST_SIZE] = {{MOVE,moveHandler}, {SERVO,servoHandler}, {TURNSIGNAL,turnsig}, {BEEP,beep}};
+ArxRobot::cmdFunc_t onCommand[CMD_LIST_SIZE] = {{MOVE,moveHandler}, {SERVO,servoHandler}, {TURNSIGNAL,turnsig}, {HEADLIGHTS,headlights}, {BEEP,beep}};
 
 Packet motorPWM(MOTOR2_CURRENT_ID);  // initialize the packet properties to default values
 
 void setup()
 {
+  // Play Start-Up Sound
   play();
+
+  // Attach Steering Servo
   servo11.attach(11);
+  
   // I2C Pin Access
   Wire.begin();
   I2Cwrite(0x03,0xF0);
@@ -224,16 +267,14 @@ void setup()
   
   // Horn on DPIN 22
   pinMode(horn,OUTPUT);
- 
-  pinMode(STBY,OUTPUT);
+
+  // Mechanical Setup
   ServoTest();                         // Run ServoTest to ensure functional SERVO
   motorPWM.setAccuracy(.001);          // change sensor accuracy from +/- 2 DN to +/- 1 DN
   motorPWM.setSamplePeriod(500000);    // sample period from 1 second to 0.5 seconds
-  motorA.begin(AIN1,AIN2,PWMA);     // begin(controlpin1,controlpin2,pwmPin)
+  motorA.begin(AIN1,AIN2,PWMA);        // begin(controlpin1,controlpin2,pwmPin)
   motorB.begin(BIN1,BIN2,PWMB);
-
-  pinMode(14,INPUT);
-  pinMode(16,INPUT);
+  pinMode(STBY,OUTPUT);
   digitalWrite(STBY, HIGH);
   
   Serial.begin(57600);               // default = 115200
