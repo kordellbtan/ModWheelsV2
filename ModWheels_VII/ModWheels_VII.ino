@@ -23,7 +23,7 @@ static uint8_t brakes = 0x00;
 ArxRobot ArxRobot;       // instantiated as ArxRobot at end of class header
 
 // Steps for current limiter
-uint8_t N = 40;
+uint8_t N = 60;
 
 /*
  * Setting Up the I2C
@@ -184,7 +184,7 @@ Motor motorA;       // Create Motor A
 Motor motorB;       // Create Motor B
 Servo servo11;      // Create servo object
 
-const uint8_t CMD_LIST_SIZE = 6;   // we are adding 4 commands (MOVE, SERVO1, TURNSIGNAL, BEEP, HEADLIGHTS, BRAKE)
+const uint8_t CMD_LIST_SIZE = 5;   // we are adding 4 commands (MOVE, SERVO1, TURNSIGNAL, BEEP, HEADLIGHTS, BRAKE)
 
 void turnsig (uint8_t cmd, uint8_t param[]){
   checkturn = param[0];
@@ -263,7 +263,7 @@ void beep (uint8_t cmd, uint8_t param[])
   int i = param[0];
 }
 
-ArxRobot::cmdFunc_t onCommand[CMD_LIST_SIZE] = {{MOVE,moveHandler}, {SERVO,servoHandler}, {TURNSIGNAL,turnsig}, {HEADLIGHTS,headlights}, {BEEP,beep}, {BRAKE,brake}};
+ArxRobot::cmdFunc_t onCommand[CMD_LIST_SIZE] = {{MOVE,moveHandler}, {TURNSIGNAL,turnsig}, {HEADLIGHTS,headlights}, {BEEP,beep}, {BRAKE,brake}};
 
 Packet motorPWM(MOTOR2_CURRENT_ID);  // initialize the packet properties to default values
 
@@ -350,8 +350,8 @@ void ServoTest() {
 }
 
 // Define Speed Parameters and Range
-uint8_t maxspd = 148;
-uint8_t minspd = 73;
+uint8_t maxspd = 231;
+uint8_t minspd = 43;
 void moveHandler (uint8_t cmd, uint8_t param[], uint8_t n)
 {
   LM = param[0];               // Check direction of motors
@@ -379,28 +379,13 @@ void moveHandler (uint8_t cmd, uint8_t param[], uint8_t n)
 //     *    AND Logic compares direction of both motors ***(RM is reverse polarity)***
 //     *      +  01,01 = FORWARD 
 //     *      +  02,02 = BACK
-//     *      +  01,02 = RIGHT
-//     *      +  02,01 = LEFT
+//     *      +  01,02 = LEFT
+//     *      +  02,01 = RIGHT
 //     */
      if (LM == 0x02 & RM == 0x02)   // Turn Right
      {
       // Differential Drive (LEFT MOTOR > RIGHT MOTOR)
-        servo11.write(angle-10);
-        if (speedB > minspd) {
-          speedB = speedB - 0x15;
-          motorB.go(0x02,speedB);
-          delay(50);
-        }
-        if (speedA < maxspd) {
-          speedA = speedA + 0x15;
-          motorA.go(0x01,speedA);
-          delay(50);
-        }
-     }
-     if (LM == 0x01 & RM == 0x01)   // Turn Left
-     {
-      // Differential Drive (RIGHT MOTOR > LEFT MOTOR)
-        servo11.write(angle+20);
+        servo11.write(90);
         if (speedA > minspd) {
           speedA = speedA - 0x15;
           motorA.go(0x01,speedA);
@@ -409,6 +394,21 @@ void moveHandler (uint8_t cmd, uint8_t param[], uint8_t n)
         if (speedB < maxspd) {
           speedB = speedB + 0x15;
           motorB.go(0x02,speedB);
+          delay(50);
+        }
+     }
+     if (LM == 0x01 & RM == 0x01)   // Turn Left
+     {
+      // Differential Drive (RIGHT MOTOR > LEFT MOTOR)
+        servo11.write(110);
+        if (speedB > minspd) {
+          speedB = speedB - 0x15;
+          motorB.go(0x02,speedB);
+          delay(50);
+        }
+        if (speedA < maxspd) {
+          speedA = speedA + 0x15;
+          motorA.go(0x01,speedA);
           delay(50);
         }
      }
@@ -448,21 +448,6 @@ void moveHandler (uint8_t cmd, uint8_t param[], uint8_t n)
         servo11.write(100);                   // Reorient servo to the middle
      }
 }  // moveHandler
-
-void servoHandler (uint8_t cmd, uint8_t param[])
-{
-    int n = param[1];
-    for (angle;angle<n;angle++)
-    {
-      servo11.write(angle);       // turn servo to specified angle
-      delay(100);
-    }
-    for (angle;angle>n;angle--)
-    {
-      servo11.write(angle);       // turn servo to specified angle
-      delay(100);
-    }
-}  // servoHandler 
 
 void brake (uint8_t cmd, uint8_t param[])
 {
