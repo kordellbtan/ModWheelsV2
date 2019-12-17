@@ -389,7 +389,7 @@ void moveHandler (uint8_t cmd, uint8_t param[], uint8_t n)
      if (LM == 0x02 & RM == 0x02)   // Turn Right
      {
       // Differential Drive (LEFT MOTOR > RIGHT MOTOR)
-        servo11.write(angle-15);
+        servo11.write(angle-10);
         if (speedB > minspd) {
           speedB = speedB - 0x15;
           motorB.go(0x02,speedB);
