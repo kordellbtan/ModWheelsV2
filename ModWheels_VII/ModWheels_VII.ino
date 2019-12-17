@@ -11,8 +11,9 @@
  */
 static uint8_t speedA = 0x00;
 static uint8_t speedB = 0x00;
-static uint8_t LM = 0x00;
-static uint8_t RM = 0x00;
+static uint8_t LM     = 0x00;
+static uint8_t RM     = 0x00;
+static uint8_t brakes = 0x00;
 
 // include C:\Program Files (x86)\Arduino 1_6_5\hardware\arduino\avr\libraries
 #include <ArxRobot.h>    // instantiated as ArxRobot at end of class header
@@ -28,31 +29,37 @@ uint8_t N = 40;
  * Setting Up the I2C
  */
 #define address      0x38
+#define shaft        0x39
+#define IN           0x00
+#define OUT          0x01
 
 void I2Cwrite(uint8_t config_, uint8_t data){
   Wire.beginTransmission(address);
   Wire.write(config_);
   Wire.write(data);
   Wire.endTransmission();
-  delay(10);
+  delay(50);
 }
 
-void I2Cread(uint8_t config_, uint8_t data){
+static uint8_t encoder = 0x00;
+// NOTE: No parameters, function will save shaft input to variable 'encoder'
+void I2Cread() {
   Wire.beginTransmission(address);
-  Wire.write(config_);
-  Wire.write(data);
+  Wire.write(OUT);
+  Wire.requestFrom(address,2);
+  encoder = Wire.read();
   Wire.endTransmission();
-  delay(10);
+  delay(50);
 }
 
 /*
  * NOTE: Custom command address space 0x40 - 0x5F.
  * We will keep SERVO defined here for manual servo adjustment as needed
  */
-#define SERVO 0x41
-#define STBY  8
-static uint8_t angle = 100;
-static uint8_t checkturn = 0x00;
+#define SERVO                0x41
+#define STBY                    8
+static uint8_t angle      =  100;
+static uint8_t checkturn  = 0x00;
 static uint8_t checklight = 0x00;
 
 /*
@@ -72,9 +79,12 @@ static uint8_t checklight = 0x00;
  *
  * (cleft) 2005 D. Cuartielles for K3
  * Refactoring and comments 2006 clay.shirky@nyu.edu
- * See NOTES in comments at end for possible improvements
+ * 
  */
+ 
 #define speakerOut      22
+//  timePWMHigh = 1/(2 * frequency) = period / 2
+//      note         period    frequency
 #define  c            3830    // 261 Hz 
 #define  d            3400    // 294 Hz 
 #define  e            3038    // 329 Hz 
@@ -83,7 +93,9 @@ static uint8_t checklight = 0x00;
 #define  a            2272    // 440 Hz 
 #define  b            2028    // 493 Hz 
 #define  C            1912    // 523 Hz
+// Rest
 #define  R               0
+
 int melody[] = {  C,  b,  g,  C,  b,   e,  R,  C,  c,  g, a, C };
 int beats[]  = { 16, 16, 16,  8,  8,  16, 32, 16, 16, 16, 8, 8 }; 
 int MAX_COUNT = sizeof(melody) / 2; // Melody length, for looping.
@@ -96,9 +108,9 @@ int MAX_COUNT = sizeof(melody) / 2; // Melody length, for looping.
   
 // Loop variable to increase Rest length
   int rest_count = 100;
-  int tone_ = 0;
-  int beat = 0;
-  long duration  = 0;
+  int tone_      =   0;
+  int beat       =   0;
+  long duration  =   0;
 
 void song()
 {
@@ -112,14 +124,14 @@ void song()
 
       // DOWN
       digitalWrite(speakerOut, LOW);
-      delayMicroseconds(tone_ / 2);
+      delayMicroseconds(tone_ / 2);   // use delayMicroseconds because period is measured in microseconds
 
       // Keep track of how long we pulsed
       elapsed_time += (tone_);
     } 
   }
   else {                                    // Rest beat; loop times delay
-    for (int j = 0; j < rest_count; j++) {  // See NOTE on rest_count
+    for (int j = 0; j < rest_count; j++) {
       delayMicroseconds(duration);  
     }                                
   }
@@ -146,6 +158,7 @@ void play()
  * - Variant Car Sounds (Horn)
  * - Differential Drive
  */
+#define BRAKE      0x40
 #define TURNSIGNAL 0x50
 #define HEADLIGHTS 0x51
 #define BEEP       0x52
@@ -165,13 +178,14 @@ void play()
 #define Rlights    0x0E
 #define Hlights    0x0F
 
+// Speaker Pin
 #define horn         22
 
 Motor motorA;       // Create Motor A
 Motor motorB;       // Create Motor B
 Servo servo11;      // Create servo object
 
-const uint8_t CMD_LIST_SIZE = 5;   // we are adding 4 commands (MOVE, SERVO1, TURNSIGNAL, BEEP, HEADLIGHTS)
+const uint8_t CMD_LIST_SIZE = 6;   // we are adding 4 commands (MOVE, SERVO1, TURNSIGNAL, BEEP, HEADLIGHTS, BRAKE)
 
 void turnsig (uint8_t cmd, uint8_t param[]){
   checkturn = param[0];
@@ -184,63 +198,65 @@ void blinker()
   {
     case 0x00:
     if (checklight == 0x01) {
-      I2Cwrite(0x01,headlight);
+      I2Cwrite(OUT,headlight);
     }
     if (checklight == 0x00) {
-      I2Cwrite(0x01,lightsOff);
+      I2Cwrite(OUT,lightsOff);
     }
     break;
     case 0x01:
     // Turning Right
     if (checklight == 0x01) {
-      I2Cwrite(0x01,Rlights);
+      I2Cwrite(OUT,Rlights);
       delay(500);
-      I2Cwrite(0x01,headlight);
+      I2Cwrite(OUT,headlight);
       delay(500);
     }
     if (checklight == 0x00) {
-      I2Cwrite(0x01,rightBlink);
+      I2Cwrite(OUT,rightBlink);
       delay(500);
-      I2Cwrite(0x01,lightsOff);
+      I2Cwrite(OUT,lightsOff);
       delay(500);
     }
     break;
     case 0x02:
     // Turning Left
     if (checklight == 0x01) {
-      I2Cwrite(0x01,Llights);
+      I2Cwrite(OUT,Llights);
       delay(500);
-      I2Cwrite(0x01,headlight);
+      I2Cwrite(OUT,headlight);
       delay(500);
     }
     if (checklight == 0x00) {
-      I2Cwrite(0x01,leftBlink);
+      I2Cwrite(OUT,leftBlink);
       delay(500);
-      I2Cwrite(0x01,lightsOff);
+      I2Cwrite(OUT,lightsOff);
       delay(500);
     }
     break;
     case 0x03:
     // Hazards ON
     if (checklight == 0x01) {
-      I2Cwrite(0x01,Hlights);
+      I2Cwrite(OUT,Hlights);
       delay(500);
-      I2Cwrite(0x01,headlight);
+      I2Cwrite(OUT,headlight);
       delay(500);
     }
     if (checklight == 0x00) {
-      I2Cwrite(0x01,hazard);
+      I2Cwrite(OUT,hazard);
       delay(500);
-      I2Cwrite(0x01,lightsOff);
+      I2Cwrite(OUT,lightsOff);
       delay(500);
     }
     break;
   }
+  return;
 }
 
 void headlights (uint8_t cmd, uint8_t param[])
 {
   checklight = param[0];
+  // Update Headlights
 }
 
 void beep (uint8_t cmd, uint8_t param[])
@@ -248,7 +264,7 @@ void beep (uint8_t cmd, uint8_t param[])
   int i = param[0];
 }
 
-ArxRobot::cmdFunc_t onCommand[CMD_LIST_SIZE] = {{MOVE,moveHandler}, {SERVO,servoHandler}, {TURNSIGNAL,turnsig}, {HEADLIGHTS,headlights}, {BEEP,beep}};
+ArxRobot::cmdFunc_t onCommand[CMD_LIST_SIZE] = {{MOVE,moveHandler}, {SERVO,servoHandler}, {TURNSIGNAL,turnsig}, {HEADLIGHTS,headlights}, {BEEP,beep}, {BRAKE,brake}};
 
 Packet motorPWM(MOTOR2_CURRENT_ID);  // initialize the packet properties to default values
 
@@ -262,7 +278,7 @@ void setup()
   
   // I2C Pin Access
   Wire.begin();
-  I2Cwrite(0x03,0xF0);
+  I2Cwrite(0x03,0xF0);                 // I2C Set I/O Pins using Config Code 0x03
   delay(5);
   
   // Horn on DPIN 22
@@ -287,15 +303,17 @@ void setup()
 void loop()
 {
   ArxRobot.loop();
-  blinker();
   /*
-   * Monitor Data/Values
+   * Continuously update LEDs
    */
+  blinker();
+//  Monitor Data/Values
 //  Serial.print("Motor A:");   // Speed of Motor A
 //  Serial.println(speedA);
 //  Serial.print("Motor B:");   // Speed of Motor B
 //  Serial.println(speedB);
-  Serial.println(checkturn);  // Check the Turn Signal Flag
+//  Serial.print("Encoder:");
+//  Serial.println(encoder);    // Check Encoder
     /*
      * Telemetry
      *         Read sensor and send packet
@@ -321,17 +339,20 @@ void ServoTest() {
  */
   for (byte x = 0; x < 1; x++)
   {
-    servo11.write(90);
-    delay(100);
-    servo11.write(70);
-    delay(100);
-    servo11.write(110);
-    delay(100); 
+    servo11.write(100);
+    delay(150);
+    servo11.write(80);
+    delay(150);
+    servo11.write(120);
+    delay(150); 
   }
   servo11.attach(11);
   servo11.write(angle);
 }
 
+// Define Speed Parameters and Range
+uint8_t maxspd = 148;
+uint8_t minspd = 73;
 void moveHandler (uint8_t cmd, uint8_t param[], uint8_t n)
 {
   LM = param[0];               // Check direction of motors
@@ -342,20 +363,21 @@ void moveHandler (uint8_t cmd, uint8_t param[], uint8_t n)
     {
       Serial.write(param[i]);
     }
-    // BRAKE
-//    if (LM == 0x04) {
-//      for (speedA;speedA > 0x00; speedA--) {
-//        motorA.go(LM,speedA);
-//        delay(100);
-//        break;
-//      }
-//      for (speedB;speedB > 0x00; speedB--) {
-//        motorB.go(RM,speedB);
-//        delay(100);
-//        break;
-//      }
-//    }
-//    
+    // AUTOMATIC BRAKE
+    if (brakes == 0x01) {
+      if (LM == 0x04) {
+        for (speedA;speedA > 0x00; speedA--) {
+          motorA.go(LM,speedA);
+          delay(100);
+          break;
+        }
+        for (speedB;speedB > 0x00; speedB--) {
+          motorB.go(RM,speedB);
+          delay(100);
+          break;
+        }
+      }
+    }
 //    /*
 //     * D-PAD Control
 //     *    AND Logic compares direction of both motors ***(RM is reverse polarity)***
@@ -364,31 +386,31 @@ void moveHandler (uint8_t cmd, uint8_t param[], uint8_t n)
 //     *      +  01,02 = RIGHT
 //     *      +  02,01 = LEFT
 //     */
-     if (LM == 0x01 & RM == 0x01)   // Turn Right
+     if (LM == 0x02 & RM == 0x02)   // Turn Right
      {
       // Differential Drive (LEFT MOTOR > RIGHT MOTOR)
         servo11.write(angle-15);
-        if (speedB > 43) {
+        if (speedB > minspd) {
           speedB = speedB - 0x15;
           motorB.go(0x02,speedB);
           delay(50);
         }
-        if (speedA < 231) {
+        if (speedA < maxspd) {
           speedA = speedA + 0x15;
           motorA.go(0x01,speedA);
           delay(50);
         }
      }
-     if (LM == 0x02 & RM == 0x02)   // Turn Left
+     if (LM == 0x01 & RM == 0x01)   // Turn Left
      {
       // Differential Drive (RIGHT MOTOR > LEFT MOTOR)
         servo11.write(angle+20);
-        if (speedA > 43) {
+        if (speedA > minspd) {
           speedA = speedA - 0x15;
           motorA.go(0x01,speedA);
           delay(50);
         }
-        if (speedB < 231) {
+        if (speedB < maxspd) {
           speedB = speedB + 0x15;
           motorB.go(0x02,speedB);
           delay(50);
@@ -406,23 +428,23 @@ void moveHandler (uint8_t cmd, uint8_t param[], uint8_t n)
        * increments are in steps of 15
        */
       if (LM == 0x01) {
-        if (speedA < 231 && speedA < param[1]) {
+        if (speedA < maxspd && speedA < param[1]) {
         speedA = speedA + 0x15;
-        delay(500);
+        delay(250);
         }
-        if  (speedB < 231 & speedB < param[3]) {
+        if  (speedB < maxspd & speedB < param[3]) {
         speedB = speedB + 0x15;
-        delay(500);
+        delay(250);
         }
       }
       else if (LM == 0x02) {
-        if (speedA > 43 && speedA > param[1]) {
+        if (speedA > minspd && speedA > param[1]) {
         speedA = speedA - 0x15;
-        delay(500);
+        delay(250);
         }
-        if (speedB > 43 && speedB > param[3]) {
+        if (speedB > minspd && speedB > param[3]) {
         speedB = speedB - 0x15;
-        delay(500);
+        delay(250);
         }
       }
         motorA.go(LM,speedA);
@@ -445,3 +467,8 @@ void servoHandler (uint8_t cmd, uint8_t param[])
       delay(100);
     }
 }  // servoHandler 
+
+void brake (uint8_t cmd, uint8_t param[])
+{
+  brakes = param[0];
+}
