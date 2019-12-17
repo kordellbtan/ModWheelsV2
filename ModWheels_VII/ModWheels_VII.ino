@@ -71,7 +71,6 @@ static uint8_t checklight = 0x00;
  * Each note has a frequency, created by varying the period of 
  *  vibration, measured in microseconds. We'll use pulse-width
  *  modulation (PWM) to create that vibration.
-
  * We calculate the pulse-width to be half the period; we pulse 
  *  the speaker HIGH for 'pulse-width' microseconds, then LOW 
  *  for 'pulse-width' microseconds.
@@ -357,12 +356,9 @@ void moveHandler (uint8_t cmd, uint8_t param[], uint8_t n)
 {
   LM = param[0];               // Check direction of motors
   RM = param[2];
-    Serial.write(cmd);             // move command = 0x01
-    Serial.write(n);               // number of param = 4
-    for (int i=0;i<n;i++)          // param = L_dir L_spd R_dir R_spd
-    {
-      Serial.write(param[i]);
-    }
+                               // move command = 0x01
+                               // number of param = 4
+                               // param = L_dir L_spd R_dir R_spd
     // AUTOMATIC BRAKE
     if (brakes == 0x01) {
       if (LM == 0x04) {
